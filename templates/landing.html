@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentiment Analysis</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    body {
+      background-color: #f0f2f5;
+      color: #333;
+      padding-bottom: 150px; /* Ensure footer doesn't overlap content */
+    }
+
+    .container {
+      margin-top: 50px;
+    }
+
+    .card {
+      background: white;
+      border: none;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+      background: #007bff;
+      color: white;
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+      padding: 15px;
+    }
+
+    .form-control {
+      background: #f7f7f7;
+      border: 1px solid #ddd;
+      color: #333;
+    }
+
+    .btn-primary {
+      background-color: #007bff;
+      border: none;
+    }
+
+    .btn-primary:hover {
+      background-color: #0056b3;
+    }
+
+    footer {
+      background: #007bff;
+      color: white;
+      padding: 10px 0;
+      position: fixed;
+      width: 100%;
+      bottom: 0;
+    }
+
+    .footer-text {
+      margin: 0;
+    }
+
+    .separator {
+      text-align: center;
+      margin: 20px 0;
+      font-size: 18px;
+      color: #555;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header text-center">
+            <h2>Sentiment Analysis</h2>
+          </div>
+          <div class="card-body">
+            <form id="predictionForm">
+              <div class="form-group">
+                <label for="csvFileInput">Upload CSV file</label>
+                <input type="file" class="form-control" id="csvFileInput" accept=".csv">
+              </div>
+              <div class="separator">or</div>
+              <div class="form-group">
+                <label for="textInput">Enter text for prediction</label>
+                <textarea class="form-control" id="textInput" rows="3" placeholder="Enter text..."></textarea>
+              </div>
+              <button type="button" class="btn btn-primary btn-block" onclick="predict()">Predict</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card mt-4">
+          <div class="card-header text-center">
+            <h3>Prediction Result</h3>
+          </div>
+          <div class="card-body">
+            <div id="predictionResult" class="text-center"></div>
+            <div id="graphContainer" class="text-center mt-4"></div>
+            <button id="downloadBtn" class="btn btn-primary btn-block mt-3" style="display:none" onclick="downloadPredictions()">Download Predictions</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center">
+    <p class="footer-text">© 2024 Sentiment Analysis. All rights reserved.</p>
+  </footer>
+
+  <script>
+    async function predict() {
+      const csvFileInput = document.getElementById("csvFileInput");
+      const textInput = document.getElementById("textInput");
+      const predictionResult = document.getElementById("predictionResult");
+      const graphContainer = document.getElementById("graphContainer");
+      const downloadBtn = document.getElementById("downloadBtn");
+
+      predictionResult.innerHTML = "";
+      graphContainer.innerHTML = "";
+      downloadBtn.style.display = "none";
+
+      if (csvFileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append("file", csvFileInput.files[0]);
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) throw new Error("Network response was not ok");
+
+          if (response.headers.get("X-Graph-Exists") === "true") {
+            const graphData = response.headers.get("X-Graph-Data");
+            displayGraph(graphData);
+          }
+
+          const blob = await response.blob();
+          downloadBtn.style.display = "block";
+          downloadBtn.onclick = () => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "Predictions.csv";
+            a.click();
+          };
+
+          predictionResult.innerHTML = "Bulk prediction completed. Download the file using the button below.";
+
+        } catch (error) {
+          predictionResult.innerHTML = `Error: ${error.message}`;
+        }
+
+      } else if (textInput.value) {
+        const text = textInput.value;
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ text }),
+          });
+
+          if (!response.ok) throw new Error("Network response was not ok");
+
+          const result = await response.json();
+
+          if (result.error) {
+            predictionResult.innerHTML = `Error: ${result.error}`;
+          } else {
+            predictionResult.innerHTML = `Predicted Sentiment: ${result.prediction}`;
+          }
+
+        } catch (error) {
+          predictionResult.innerHTML = `Error: ${error.message}`;
+        }
+
+      } else {
+        predictionResult.innerHTML = "Please provide a CSV file or text input for prediction.";
+      }
+    }
+
+    function displayGraph(graphData) {
+      const graphContainer = document.getElementById("graphContainer");
+      const graphUrl = "data:image/png;base64," + graphData;
+      const img = document.createElement('img');
+      img.src = graphUrl;
+      graphContainer.innerHTML = "";
+      graphContainer.appendChild(img);
+    }
+  </script>
+</body>
+
+</html>
